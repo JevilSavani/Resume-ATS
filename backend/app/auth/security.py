@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 import bcrypt
 import jwt
@@ -23,7 +24,7 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(plain_password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: UUID) -> str:
     if not settings.secret_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -58,7 +59,7 @@ def get_current_user(
             settings.secret_key,
             algorithms=[settings.jwt_algorithm],
         )
-        user_id = int(payload.get("sub"))
+        user_id = UUID(payload.get("sub"))
     except (PyJWTError, TypeError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

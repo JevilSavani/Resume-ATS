@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.config.settings import settings
 from app.database.session import Base, engine
@@ -35,7 +36,10 @@ async def validation_exception_handler(_, exc: RequestValidationError):
 @app.on_event("startup")
 def startup():
     if engine is not None:
-        Base.metadata.create_all(bind=engine, tables=[User.__table__])
+        try:
+            Base.metadata.create_all(bind=engine, tables=[User.__table__])
+        except SQLAlchemyError as exc:
+            print(f"Database startup check skipped: {exc}")
 
 
 @app.get("/")

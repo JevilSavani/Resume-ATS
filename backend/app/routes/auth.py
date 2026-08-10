@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -22,7 +22,14 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     status_code=status.HTTP_201_CREATED,
 )
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == payload.email).first()
+    try:
+        existing_user = db.query(User).filter(User.email == payload.email).first()
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection failed. Check your Supabase database URL or use the Supabase pooler connection string.",
+        ) from exc
+
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -43,6 +50,12 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists.",
         )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection failed. Check your Supabase database URL or use the Supabase pooler connection string.",
+        ) from exc
 
     db.refresh(user)
     return user
@@ -50,7 +63,14 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=AuthResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
+    try:
+        user = db.query(User).filter(User.email == payload.email).first()
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection failed. Check your Supabase database URL or use the Supabase pooler connection string.",
+        ) from exc
+
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

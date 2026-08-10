@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -42,7 +43,7 @@ class LoginRequest(BaseModel):
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: UUID
     name: str
     email: str
     created_at: datetime
