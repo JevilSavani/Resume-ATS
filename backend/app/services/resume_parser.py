@@ -3,7 +3,7 @@ from pathlib import Path
 
 import fitz
 
-from app.services.nlp_service import extract_name, extract_section, extract_skills
+from .nlp_service import extract_name, extract_section, extract_skills
 
 
 EMAIL_PATTERN = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")

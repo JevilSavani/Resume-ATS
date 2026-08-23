@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app.config.settings import settings
+from ..config.settings import settings
 
 
 if settings.database_url:

@@ -40,6 +40,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         name=payload.name,
         email=payload.email,
         password_hash=get_password_hash(payload.password),
+        role=payload.role,
     )
     db.add(user)
     try:

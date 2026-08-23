@@ -83,3 +83,21 @@ def get_current_user(
         return user
     finally:
         db.close()
+
+
+def require_candidate(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "candidate":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access restricted to Candidate accounts.",
+        )
+    return current_user
+
+
+def require_recruiter(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "recruiter":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access restricted to Recruiter accounts.",
+        )
+    return current_user
