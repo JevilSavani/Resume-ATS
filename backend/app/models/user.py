@@ -22,8 +22,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column("password", String(255), nullable=False)
     role: Mapped[str] = mapped_column(
         String(50),
-        default="recruiter",
-        server_default=text("'recruiter'"),
+        default="candidate",
+        server_default=text("'candidate'"),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(

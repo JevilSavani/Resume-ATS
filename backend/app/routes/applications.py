@@ -107,13 +107,18 @@ def get_job_applications(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_recruiter),
 ):
+    job = db.query(JobProfile).filter(JobProfile.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job profile not found.")
+    if job.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only view applicants for your own jobs.")
+
     apps = (
         db.query(Application)
         .filter(Application.job_id == job_id)
         .order_by(Application.created_at.desc())
         .all()
     )
-    job = db.query(JobProfile).filter(JobProfile.id == job_id).first()
     results = []
     for app in apps:
         candidate = db.query(Candidate).filter(Candidate.id == app.candidate_id).first() if app.candidate_id else None
@@ -174,6 +179,10 @@ def update_application_status(
     if not app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found.")
 
+    job = db.query(JobProfile).filter(JobProfile.id == app.job_id).first()
+    if not job or job.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only update applications for jobs you own.")
+
     new_status = status_update.get("status")
     if not new_status:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status field is required.")
@@ -189,7 +198,6 @@ def update_application_status(
             detail="Could not update application status.",
         ) from exc
 
-    job = db.query(JobProfile).filter(JobProfile.id == app.job_id).first()
     candidate = db.query(Candidate).filter(Candidate.id == app.candidate_id).first() if app.candidate_id else None
     return ApplicationResponse(
         id=app.id,

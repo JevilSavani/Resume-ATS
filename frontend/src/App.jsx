@@ -9,8 +9,9 @@ import CandidateProfilePage from './pages/candidate/CandidateProfilePage'
 import AvailableJobsPage from './pages/candidate/AvailableJobsPage'
 import CandidateApplicationsPage from './pages/candidate/CandidateApplicationsPage'
 import RecruiterDashboard from './pages/recruiter/RecruiterDashboard'
-import CreateJobPage from './pages/recruiter/CreateJobPage'
-import MyJobListingsPage from './pages/recruiter/MyJobListingsPage'
+import CreateJob from './pages/recruiter/CreateJob'
+import RecruiterJobs from './pages/recruiter/RecruiterJobs'
+import RecruiterApplicants from './pages/recruiter/RecruiterApplicants'
 import CandidatesListPage from './pages/recruiter/CandidatesListPage'
 import CandidateRankingPage from './pages/recruiter/CandidateRankingPage'
 
@@ -155,10 +156,13 @@ function App() {
   } else if (userRole === 'recruiter') {
     switch (route) {
       case '/recruiter/jobs/create':
-        pageContent = <CreateJobPage token={token} navigate={navigate} />
+        pageContent = <CreateJob token={token} navigate={navigate} />
         break
       case '/recruiter/jobs':
-        pageContent = <MyJobListingsPage token={token} navigate={navigate} />
+        pageContent = <RecruiterJobs token={token} navigate={navigate} />
+        break
+      case '/recruiter/applicants':
+        pageContent = <RecruiterApplicants token={token} navigate={navigate} />
         break
       case '/recruiter/candidates':
         pageContent = <CandidatesListPage token={token} />

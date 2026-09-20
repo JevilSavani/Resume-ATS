@@ -17,7 +17,7 @@ export default function CandidateModal({ candidate, onClose }) {
           </button>
         </div>
 
-        {candidate.ats_score !== undefined && (
+        {typeof candidate.ats_score === 'number' && (
           <div className="modal-score-section">
             <div className="score-main-badge">
               <span className="score-main-value">{candidate.ats_score.toFixed(1)}%</span>
@@ -40,6 +40,15 @@ export default function CandidateModal({ candidate, onClose }) {
                 <span>Education Match</span>
                 <strong>{candidate.education_score?.toFixed(1) ?? '0.0'}%</strong>
               </div>
+            </div>
+          </div>
+        )}
+
+        {typeof candidate.ats_score === 'string' && candidate.ats_score && (
+          <div className="modal-score-section" style={{ padding: '12px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', color: '#64748b' }}>ATS Match Status:</span>
+              <strong style={{ fontSize: '14px', color: '#0f172a' }}>{candidate.ats_score}</strong>
             </div>
           </div>
         )}

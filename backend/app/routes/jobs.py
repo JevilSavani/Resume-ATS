@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -7,10 +9,42 @@ from app.database.session import get_db
 from app.models.candidate import Candidate
 from app.models.job_profile import JobProfile
 from app.models.user import User
-from app.schemas.job import JobProfileCreateRequest, JobProfileResponse, JobRankingResponse
+from app.schemas.job import (
+    JobCreateRequest,
+    JobProfileCreateRequest,
+    JobProfileResponse,
+    JobRankingResponse,
+    JobUpdateRequest,
+)
 from app.services.job_service import parse_job_description, rank_candidates_for_job
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
+
+@router.post("/extract-skills")
+def extract_job_skills_only(
+    payload: dict,
+    current_user: User = Depends(require_recruiter),
+):
+    """
+    Pure NLP extraction endpoint: analyzes text without saving anything to the database.
+    """
+    description = (payload.get("description") or "").strip()
+    if not description:
+        return {"skills": [], "experience": None, "education": None, "keywords": []}
+
+    parsed = parse_job_description(
+        description,
+        title=payload.get("title"),
+        company=payload.get("company_name") or payload.get("company"),
+        location=payload.get("location"),
+    )
+    return {
+        "skills": parsed.get("skills", []),
+        "experience": parsed.get("experience"),
+        "education": parsed.get("education"),
+        "keywords": parsed.get("keywords", []),
+    }
 
 
 @router.post("/parse", response_model=JobProfileResponse, status_code=status.HTTP_201_CREATED)
@@ -23,21 +57,51 @@ def create_job_profile(
         parsed_job = parse_job_description(
             payload.description,
             title=payload.title,
-            company=payload.company,
+            company=payload.company or payload.company_name,
             location=payload.location,
         )
+
+        company = parsed_job["company"] or payload.company_name or payload.company
+        skills = parsed_job["skills"] or payload.required_skills
+        experience = parsed_job["experience"] or payload.minimum_experience
+        education = parsed_job["education"] or payload.education_requirement
+
+        # Idempotency / Duplicate protection: Check if identical job was created within the last 10 seconds
+        recent_threshold = datetime.utcnow() - timedelta(seconds=10)
+        existing_duplicate = (
+            db.query(JobProfile)
+            .filter(
+                JobProfile.user_id == current_user.id,
+                JobProfile.title == parsed_job["title"],
+                JobProfile.company == company,
+                JobProfile.description == parsed_job["description"],
+                JobProfile.created_at >= recent_threshold,
+            )
+            .order_by(JobProfile.created_at.desc())
+            .first()
+        )
+        if existing_duplicate:
+            return existing_duplicate
 
         job = JobProfile(
             user_id=current_user.id,
             title=parsed_job["title"],
-            company=parsed_job["company"],
+            company=company,
+            company_name=company,
             location=parsed_job["location"],
-            skills=parsed_job["skills"],
-            experience=parsed_job["experience"],
-            education=parsed_job["education"],
+            skills=skills,
+            required_skills=skills,
+            preferred_skills=payload.preferred_skills or [],
+            experience=experience,
+            minimum_experience=experience,
+            education=education,
+            education_requirement=education,
             keywords=parsed_job["keywords"],
             description=parsed_job["description"],
             job_text=parsed_job["job_text"],
+            employment_type=payload.employment_type or "Full-time",
+            salary=payload.salary,
+            status=payload.status or "active",
         )
         db.add(job)
         db.commit()
@@ -53,12 +117,28 @@ def create_job_profile(
         ) from exc
 
 
+@router.get("", response_model=list[JobProfileResponse])
 @router.get("/profiles", response_model=list[JobProfileResponse])
 def list_job_profiles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     jobs = db.query(JobProfile).order_by(JobProfile.created_at.desc()).all()
+    return jobs
+
+
+@router.get("/available", response_model=list[JobProfileResponse])
+def list_available_jobs_for_candidates(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Only active jobs for candidate view
+    jobs = (
+        db.query(JobProfile)
+        .filter(JobProfile.status == "active")
+        .order_by(JobProfile.created_at.desc())
+        .all()
+    )
     return jobs
 
 
@@ -71,6 +151,7 @@ def list_my_job_profiles(
     return jobs
 
 
+@router.get("/{job_id}", response_model=JobProfileResponse)
 @router.get("/profiles/{job_id}", response_model=JobProfileResponse)
 def get_job_profile(
     job_id: str,
@@ -81,6 +162,65 @@ def get_job_profile(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job profile not found.")
     return job
+
+
+@router.put("/{job_id}", response_model=JobProfileResponse)
+@router.put("/profiles/{job_id}", response_model=JobProfileResponse)
+def update_job_profile(
+    job_id: str,
+    payload: JobUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_recruiter),
+):
+    job = db.query(JobProfile).filter(JobProfile.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job profile not found.")
+
+    if job.user_id and job.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit jobs you created.")
+
+    if payload.title is not None:
+        job.title = payload.title
+    company = payload.company_name or payload.company
+    if company is not None:
+        job.company = company
+        job.company_name = company
+    if payload.location is not None:
+        job.location = payload.location
+    if payload.description is not None:
+        job.description = payload.description
+        job.job_text = payload.description
+    skills = payload.required_skills or payload.skills
+    if skills is not None:
+        job.skills = skills
+        job.required_skills = skills
+    if payload.preferred_skills is not None:
+        job.preferred_skills = payload.preferred_skills
+    exp = payload.minimum_experience or payload.experience
+    if exp is not None:
+        job.experience = exp
+        job.minimum_experience = exp
+    edu = payload.education_requirement or payload.education
+    if edu is not None:
+        job.education = edu
+        job.education_requirement = edu
+    if payload.employment_type is not None:
+        job.employment_type = payload.employment_type
+    if payload.salary is not None:
+        job.salary = payload.salary
+    if payload.status is not None:
+        job.status = payload.status
+
+    try:
+        db.commit()
+        db.refresh(job)
+        return job
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not update job profile.",
+        ) from exc
 
 
 @router.post("/rank", response_model=JobRankingResponse)

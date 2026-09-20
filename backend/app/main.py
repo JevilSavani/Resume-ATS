@@ -15,6 +15,7 @@ from .models.user import User
 from .routes.applications import router as applications_router
 from .routes.auth import router as auth_router
 from .routes.jobs import router as jobs_router
+from .routes.recruiter import router as recruiter_router
 from .routes.resumes import router as resume_router
 
 app = FastAPI(
@@ -53,6 +54,7 @@ def ensure_database_schema():
         with engine.begin() as connection:
             if "role" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'candidate'"))
+            connection.execute(text("UPDATE users SET role = 'candidate' WHERE role IS NULL"))
 
     if "candidates" not in tables:
         Base.metadata.create_all(bind=engine, tables=[Candidate.__table__])
@@ -81,6 +83,25 @@ def ensure_database_schema():
                 connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS keywords JSON DEFAULT '[]'::json"))
             if "job_text" not in columns:
                 connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS job_text TEXT"))
+            if "status" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active'"))
+            if "company_name" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS company_name VARCHAR(200)"))
+            if "required_skills" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS required_skills JSON DEFAULT '[]'::json"))
+            if "preferred_skills" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS preferred_skills JSON DEFAULT '[]'::json"))
+            if "education_requirement" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS education_requirement VARCHAR(200)"))
+            if "minimum_experience" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS minimum_experience VARCHAR(200)"))
+            if "employment_type" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS employment_type VARCHAR(100) DEFAULT 'Full-time'"))
+            if "salary" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS salary VARCHAR(100)"))
+            if "updated_at" not in columns:
+                connection.execute(text("ALTER TABLE job_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP"))
+            connection.execute(text("UPDATE job_profiles SET status = 'active' WHERE status IS NULL"))
 
     if "applications" not in tables:
         Base.metadata.create_all(bind=engine, tables=[Application.__table__])
@@ -106,4 +127,5 @@ app.include_router(auth_router)
 app.include_router(resume_router)
 app.include_router(jobs_router)
 app.include_router(applications_router)
+app.include_router(recruiter_router)
 

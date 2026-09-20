@@ -1,60 +1,67 @@
 import { useEffect, useState } from 'react'
 
 export default function RecruiterDashboard({ user, token, navigate }) {
-  const [myJobs, setMyJobs] = useState([])
-  const [candidates, setCandidates] = useState([])
-  const [applications, setApplications] = useState([])
+  const [stats, setStats] = useState({
+    total_jobs: 0,
+    active_jobs: 0,
+    total_applicants: 0,
+    recent_jobs: [],
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8002'
 
   useEffect(() => {
-    async function loadData() {
+    async function loadDashboard() {
       if (!token) return
       setLoading(true)
       setError('')
 
       try {
-        const headers = { Authorization: `Bearer ${token}` }
-        const [jobsRes, candRes, appsRes] = await Promise.allSettled([
-          fetch(`${API_URL}/jobs/my-jobs`, { headers }),
-          fetch(`${API_URL}/resumes/all`, { headers }),
-          fetch(`${API_URL}/applications/recruiter/all`, { headers }),
-        ])
+        const response = await fetch(`${API_URL}/recruiter/dashboard`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
 
-        if (jobsRes.status === 'fulfilled' && jobsRes.value.ok) {
-          const jobsData = await jobsRes.value.json()
-          setMyJobs(Array.isArray(jobsData) ? jobsData : [])
-        }
+        if (response.ok) {
+          const data = await response.json()
+          setStats(data)
+        } else {
+          // Fallback if needed
+          const [jobsRes, appsRes] = await Promise.allSettled([
+            fetch(`${API_URL}/jobs/my-jobs`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_URL}/applications/recruiter/all`, { headers: { Authorization: `Bearer ${token}` } }),
+          ])
 
-        if (candRes.status === 'fulfilled' && candRes.value.ok) {
-          const candData = await candRes.value.json()
-          setCandidates(Array.isArray(candData) ? candData : [])
-        }
+          const jobsData = jobsRes.status === 'fulfilled' && jobsRes.value.ok ? await jobsRes.value.json() : []
+          const appsData = appsRes.status === 'fulfilled' && appsRes.value.ok ? await appsRes.value.json() : []
 
-        if (appsRes.status === 'fulfilled' && appsRes.value.ok) {
-          const appsData = await appsRes.value.json()
-          setApplications(Array.isArray(appsData) ? appsData : [])
+          const activeCount = jobsData.filter((j) => (j.status || 'active').toLowerCase() === 'active').length
+          setStats({
+            total_jobs: jobsData.length,
+            active_jobs: activeCount,
+            total_applicants: appsData.length,
+            recent_jobs: jobsData.slice(0, 5),
+          })
         }
       } catch (err) {
-        setError('Failed to load dashboard data.')
+        setError('Failed to load dashboard metrics. Check server connection.')
       } finally {
         setLoading(false)
       }
     }
 
-    loadData()
+    loadDashboard()
   }, [token, API_URL])
 
   return (
     <div className="dashboard-container">
       <div className="page-header">
         <div>
-          <span className="eyebrow">Recruiter Dashboard</span>
+          <span className="eyebrow">Recruiter Portal</span>
           <h1>Welcome, {user?.name || 'Recruiter'}</h1>
           <p className="lead">
-            Manage your job postings, browse candidate profiles, and run automated ATS scoring & candidate ranking.
+            Manage your job postings, monitor active applicants, and evaluate candidates.
           </p>
         </div>
         <div className="header-actions">
@@ -77,163 +84,162 @@ export default function RecruiterDashboard({ user, token, navigate }) {
 
       {error && <div className="alert error-alert">{error}</div>}
 
-      {/* Stats Grid */}
+      {/* Metrics Cards */}
       <div className="stats-grid">
         <div className="stat-card">
           <span className="stat-icon">💼</span>
           <div className="stat-info">
-            <span className="stat-label">My Job Listings</span>
-            <strong className="stat-value">{myJobs.length}</strong>
+            <span className="stat-label">Total Jobs</span>
+            <strong className="stat-value">{stats.total_jobs}</strong>
           </div>
         </div>
 
         <div className="stat-card">
-          <span className="stat-icon">👥</span>
+          <span className="stat-icon">🟢</span>
           <div className="stat-info">
-            <span className="stat-label">Total Candidates</span>
-            <strong className="stat-value">{candidates.length}</strong>
+            <span className="stat-label">Active Jobs</span>
+            <strong className="stat-value text-success">{stats.active_jobs}</strong>
           </div>
         </div>
 
         <div className="stat-card">
           <span className="stat-icon">📬</span>
           <div className="stat-info">
-            <span className="stat-label">Applications Received</span>
-            <strong className="stat-value">{applications.length}</strong>
+            <span className="stat-label">Total Applicants</span>
+            <strong className="stat-value">{stats.total_applicants}</strong>
           </div>
         </div>
 
         <div className="stat-card">
           <span className="stat-icon">⚡</span>
           <div className="stat-info">
-            <span className="stat-label">ATS Match Engine</span>
-            <strong className="stat-value text-success">Active</strong>
+            <span className="stat-label">ATS Match System</span>
+            <strong className="stat-value">Ready</strong>
           </div>
         </div>
       </div>
 
-      {/* Quick Action Shortcuts */}
+      {/* Navigation Shortcuts */}
       <div className="recruiter-quick-actions">
         <div className="quick-action-card" onClick={() => navigate('/recruiter/jobs/create')}>
           <span className="action-icon">📝</span>
           <div>
-            <strong>Create Job Description</strong>
-            <p>Paste a job description and let spaCy extract key skills & requirements.</p>
+            <strong>Create Job</strong>
+            <p>Post a new opening with required skills, experience, and job description.</p>
           </div>
         </div>
+
+        <div className="quick-action-card" onClick={() => navigate('/recruiter/jobs')}>
+          <span className="action-icon">💼</span>
+          <div>
+            <strong>Manage Jobs</strong>
+            <p>View, edit, activate, or close your existing job listings.</p>
+          </div>
+        </div>
+
+        <div className="quick-action-card" onClick={() => navigate('/recruiter/applicants')}>
+          <span className="action-icon">👥</span>
+          <div>
+            <strong>View Applicants</strong>
+            <p>Review candidate profiles and update application statuses.</p>
+          </div>
+        </div>
+
         <div className="quick-action-card highlight-card" onClick={() => navigate('/recruiter/ranking')}>
           <span className="action-icon">🏆</span>
           <div>
             <strong>Candidate Ranking</strong>
-            <p>Score & rank candidate resumes against any job profile using TF-IDF & Cosine Similarity.</p>
-          </div>
-        </div>
-        <div className="quick-action-card" onClick={() => navigate('/recruiter/candidates')}>
-          <span className="action-icon">🔍</span>
-          <div>
-            <strong>Browse Candidates</strong>
-            <p>Search and filter candidate profiles and view extracted resumes.</p>
+            <p>Run ATS scoring and ranking across applicant resumes.</p>
           </div>
         </div>
       </div>
 
-      {/* Active Jobs & Recent Applications Grid */}
-      <div className="dashboard-grid-two-col">
-        {/* Active Job Openings */}
-        <div className="card-box">
-          <div className="card-box-header">
-            <h3>My Active Job Postings</h3>
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => navigate('/recruiter/jobs')}
-            >
-              View All ({myJobs.length}) &rarr;
-            </button>
-          </div>
-          <div className="card-box-body">
-            {loading ? (
-              <p className="muted-text">Loading postings...</p>
-            ) : myJobs.length > 0 ? (
-              <ul className="recruiter-job-list">
-                {myJobs.slice(0, 4).map((job) => (
-                  <li key={job.id} className="recruiter-job-item">
+      {/* Recent Jobs Section */}
+      <div className="card-box" style={{ marginTop: '24px' }}>
+        <div className="card-box-header">
+          <h3>Recent Jobs ({stats.recent_jobs?.length || 0})</h3>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => navigate('/recruiter/jobs')}
+          >
+            View All Jobs &rarr;
+          </button>
+        </div>
+
+        <div className="card-box-body">
+          {loading ? (
+            <p className="muted-text">Loading jobs...</p>
+          ) : stats.recent_jobs && stats.recent_jobs.length > 0 ? (
+            <div className="recruiter-job-list">
+              {stats.recent_jobs.map((job) => {
+                const isActive = (job.status || 'active').toLowerCase() === 'active'
+                return (
+                  <div key={job.id} className="recruiter-job-item">
                     <div>
-                      <strong>{job.title || 'Untitled Job'}</strong>
-                      <p className="muted-text">{job.company || 'Company'} • {job.location || 'Remote'}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <strong>{job.title || 'Untitled Job'}</strong>
+                        <span
+                          className={`meta-tag ${isActive ? 'status-active-badge' : 'status-closed-badge'}`}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            background: isActive ? '#ecfdf5' : '#f1f5f9',
+                            color: isActive ? '#059669' : '#64748b',
+                            border: `1px solid ${isActive ? '#a7f3d0' : '#cbd5e1'}`,
+                          }}
+                        >
+                          {isActive ? '● Active' : '○ Closed'}
+                        </span>
+                      </div>
+                      <p className="muted-text" style={{ margin: '4px 0 8px' }}>
+                        {job.company_name || job.company || 'Company'} • {job.location || 'Remote'} •{' '}
+                        <strong>{job.applicant_count || 0} Applicants</strong>
+                      </p>
                       <div className="skill-list compact-skills">
-                        {job.skills?.slice(0, 4).map((s) => (
-                          <span key={s} className="skill-pill">{s}</span>
+                        {(job.required_skills || job.skills || []).slice(0, 5).map((s) => (
+                          <span key={s} className="skill-pill">
+                            {s}
+                          </span>
                         ))}
                       </div>
                     </div>
-                    <div className="job-action-col">
+
+                    <div className="job-action-col" style={{ display: 'flex', gap: '8px' }}>
                       <button
                         type="button"
                         className="secondary-action compact"
+                        onClick={() => navigate(`/recruiter/applicants?job_id=${job.id}`)}
+                      >
+                        View Applicants ({job.applicant_count || 0})
+                      </button>
+                      <button
+                        type="button"
+                        className="primary-action compact highlight-action"
                         onClick={() => navigate(`/recruiter/ranking?job_id=${job.id}`)}
                       >
                         ⚡ Rank Candidates
                       </button>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="empty-sub-state">
-                <p className="muted-text">No job postings created yet.</p>
-                <button
-                  type="button"
-                  className="primary-action compact"
-                  onClick={() => navigate('/recruiter/jobs/create')}
-                >
-                  Create First Job
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Candidate Pool Preview */}
-        <div className="card-box">
-          <div className="card-box-header">
-            <h3>Candidate Pool ({candidates.length})</h3>
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => navigate('/recruiter/candidates')}
-            >
-              Explore Pool &rarr;
-            </button>
-          </div>
-          <div className="card-box-body">
-            {loading ? (
-              <p className="muted-text">Loading candidate pool...</p>
-            ) : candidates.length > 0 ? (
-              <ul className="simple-cand-list">
-                {candidates.slice(0, 4).map((cand) => (
-                  <li key={cand.id} className="simple-cand-item">
-                    <div className="cand-avatar">
-                      {(cand.name || 'C').charAt(0).toUpperCase()}
-                    </div>
-                    <div className="cand-info">
-                      <strong>{cand.name || 'Candidate'}</strong>
-                      <p className="muted-text">{cand.email || 'No email'}</p>
-                      <div className="skill-list compact-skills">
-                        {cand.skills?.slice(0, 3).map((s) => (
-                          <span key={s} className="skill-pill">{s}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="empty-sub-state">
-                <p className="muted-text">No candidate resumes uploaded yet.</p>
-              </div>
-            )}
-          </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="empty-sub-state">
+              <span className="empty-icon">💼</span>
+              <p>No job postings yet.</p>
+              <button
+                type="button"
+                className="primary-action compact"
+                onClick={() => navigate('/recruiter/jobs/create')}
+              >
+                + Post Your First Job
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

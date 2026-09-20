@@ -78,7 +78,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             detail="Invalid email or password.",
         )
 
-    return AuthResponse(access_token=create_access_token(user.id), user=user)
+    return AuthResponse(access_token=create_access_token(user.id, role=user.role), user=user)
 
 
 @router.get("/me", response_model=UserResponse)

@@ -24,7 +24,7 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(plain_password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
-def create_access_token(user_id: UUID) -> str:
+def create_access_token(user_id: UUID, role: str = "candidate") -> str:
     if not settings.secret_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -34,7 +34,7 @@ def create_access_token(user_id: UUID) -> str:
     expires_at = datetime.now(timezone.utc) + timedelta(
         minutes=settings.access_token_expire_minutes
     )
-    payload = {"sub": str(user_id), "exp": expires_at}
+    payload = {"sub": str(user_id), "role": role, "exp": expires_at}
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
 
 

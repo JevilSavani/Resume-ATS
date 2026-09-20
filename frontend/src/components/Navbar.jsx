@@ -78,6 +78,13 @@ export default function Navbar({ user, isAuthenticated, currentRoute, navigate, 
                 </button>
                 <button
                   type="button"
+                  className={`nav-btn ${currentRoute === '/recruiter/jobs' ? 'active' : ''}`}
+                  onClick={() => navigate('/recruiter/jobs')}
+                >
+                  Jobs
+                </button>
+                <button
+                  type="button"
                   className={`nav-btn ${currentRoute === '/recruiter/jobs/create' ? 'active' : ''}`}
                   onClick={() => navigate('/recruiter/jobs/create')}
                 >
@@ -85,17 +92,10 @@ export default function Navbar({ user, isAuthenticated, currentRoute, navigate, 
                 </button>
                 <button
                   type="button"
-                  className={`nav-btn ${currentRoute === '/recruiter/jobs' ? 'active' : ''}`}
-                  onClick={() => navigate('/recruiter/jobs')}
+                  className={`nav-btn ${currentRoute === '/recruiter/applicants' ? 'active' : ''}`}
+                  onClick={() => navigate('/recruiter/applicants')}
                 >
-                  My Job Listings
-                </button>
-                <button
-                  type="button"
-                  className={`nav-btn ${currentRoute === '/recruiter/candidates' ? 'active' : ''}`}
-                  onClick={() => navigate('/recruiter/candidates')}
-                >
-                  Candidates
+                  Applicants
                 </button>
                 <button
                   type="button"
