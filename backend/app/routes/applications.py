@@ -37,7 +37,10 @@ def apply_for_job(
         )
 
     candidate_record = get_candidate_by_user_id(db, current_user.id)
-    candidate_id = UUID(str(candidate_record["id"])) if candidate_record else None
+    candidate_id = None
+    if candidate_record:
+        raw_id = getattr(candidate_record, "id", None) or (candidate_record.get("id") if isinstance(candidate_record, dict) else None)
+        candidate_id = UUID(str(raw_id)) if raw_id else None
 
     application = Application(
         user_id=current_user.id,

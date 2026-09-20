@@ -1,146 +1,77 @@
 import json
 from uuid import UUID
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.candidate import Candidate
 
-def create_candidate(db: Session, parsed_resume: dict, user_id: UUID | None = None) -> dict:
-    skills = parsed_resume.get("skills", [])
-    skills_json = json.dumps(skills)
+
+def create_candidate(db: Session, parsed_resume: dict, user_id: UUID | None = None) -> Candidate:
+    skills = parsed_resume.get("skills") or []
+    if isinstance(skills, str):
+        try:
+            skills = json.loads(skills)
+        except Exception:
+            skills = [s.strip() for s in skills.split(",") if s.strip()]
 
     if user_id:
-        existing = db.execute(
-            text("SELECT id FROM candidates WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 1"),
-            {"user_id": str(user_id)},
-        ).mappings().first()
+        existing = (
+            db.query(Candidate)
+            .filter(Candidate.user_id == user_id)
+            .order_by(Candidate.created_at.desc())
+            .first()
+        )
 
         if existing:
-            result = db.execute(
-                text(
-                    """
-                    UPDATE candidates
-                    SET name = :name,
-                        email = :email,
-                        phone = :phone,
-                        education = :education,
-                        experience = :experience,
-                        skills = :skills::json,
-                        resume_path = :resume_path,
-                        resume_text = :resume_text
-                    WHERE id = :id
-                    RETURNING id, user_id, name, email, phone, education, experience, skills, resume_path, resume_text, created_at
-                    """
-                ),
-                {
-                    "id": existing["id"],
-                    "name": parsed_resume.get("name"),
-                    "email": parsed_resume.get("email"),
-                    "phone": parsed_resume.get("phone"),
-                    "education": parsed_resume.get("education"),
-                    "experience": parsed_resume.get("experience"),
-                    "skills": skills_json,
-                    "resume_path": parsed_resume.get("resume_path"),
-                    "resume_text": parsed_resume.get("resume_text"),
-                },
-            )
+            existing.name = parsed_resume.get("name")
+            existing.email = parsed_resume.get("email")
+            existing.phone = parsed_resume.get("phone")
+            existing.education = parsed_resume.get("education")
+            existing.experience = parsed_resume.get("experience")
+            existing.skills = skills
+            existing.resume_path = parsed_resume.get("resume_path")
+            existing.resume_text = parsed_resume.get("resume_text")
             db.commit()
-            candidate = dict(result.mappings().one())
-            if isinstance(candidate.get("skills"), str):
-                candidate["skills"] = json.loads(candidate["skills"])
-            candidate["skills"] = candidate.get("skills") or skills
-            return candidate
+            db.refresh(existing)
+            return existing
 
-    result = db.execute(
-        text(
-            """
-            INSERT INTO candidates
-                (user_id, name, email, phone, education, experience, skills, resume_path, resume_text)
-            VALUES
-                (:user_id, :name, :email, :phone, :education, :experience, :skills::json, :resume_path, :resume_text)
-            RETURNING id, user_id, name, email, phone, education, experience, skills, resume_path, resume_text, created_at
-            """
-        ),
-        {
-            "user_id": str(user_id) if user_id else None,
-            "name": parsed_resume.get("name"),
-            "email": parsed_resume.get("email"),
-            "phone": parsed_resume.get("phone"),
-            "education": parsed_resume.get("education"),
-            "experience": parsed_resume.get("experience"),
-            "skills": skills_json,
-            "resume_path": parsed_resume.get("resume_path"),
-            "resume_text": parsed_resume.get("resume_text"),
-        },
+    candidate = Candidate(
+        user_id=user_id,
+        name=parsed_resume.get("name"),
+        email=parsed_resume.get("email"),
+        phone=parsed_resume.get("phone"),
+        education=parsed_resume.get("education"),
+        experience=parsed_resume.get("experience"),
+        skills=skills,
+        resume_path=parsed_resume.get("resume_path"),
+        resume_text=parsed_resume.get("resume_text"),
     )
+    db.add(candidate)
     db.commit()
-    candidate = dict(result.mappings().one())
-    if isinstance(candidate.get("skills"), str):
-        candidate["skills"] = json.loads(candidate["skills"])
-    candidate["skills"] = candidate.get("skills") or skills
+    db.refresh(candidate)
     return candidate
 
 
-def get_candidate_by_user_id(db: Session, user_id: UUID) -> dict | None:
-    result = db.execute(
-        text(
-            """
-            SELECT id, user_id, name, email, phone, education, experience, skills, resume_path, resume_text, created_at
-            FROM candidates
-            WHERE user_id = :user_id
-            ORDER BY created_at DESC
-            LIMIT 1
-            """
-        ),
-        {"user_id": str(user_id)},
+def get_candidate_by_user_id(db: Session, user_id: UUID) -> Candidate | None:
+    return (
+        db.query(Candidate)
+        .filter(Candidate.user_id == user_id)
+        .order_by(Candidate.created_at.desc())
+        .first()
     )
-    row = result.mappings().first()
-    if not row:
-        return None
-    candidate = dict(row)
-    if isinstance(candidate.get("skills"), str):
-        candidate["skills"] = json.loads(candidate["skills"])
-    candidate["skills"] = candidate.get("skills") or []
-    return candidate
 
 
-def get_candidate_by_id(db: Session, candidate_id: UUID) -> dict | None:
-    result = db.execute(
-        text(
-            """
-            SELECT id, user_id, name, email, phone, education, experience, skills, resume_path, resume_text, created_at
-            FROM candidates
-            WHERE id = :candidate_id
-            LIMIT 1
-            """
-        ),
-        {"candidate_id": str(candidate_id)},
+def get_candidate_by_id(db: Session, candidate_id: UUID) -> Candidate | None:
+    return (
+        db.query(Candidate)
+        .filter(Candidate.id == candidate_id)
+        .first()
     )
-    row = result.mappings().first()
-    if not row:
-        return None
-    candidate = dict(row)
-    if isinstance(candidate.get("skills"), str):
-        candidate["skills"] = json.loads(candidate["skills"])
-    candidate["skills"] = candidate.get("skills") or []
-    return candidate
 
 
-def list_candidates(db: Session) -> list[dict]:
-    result = db.execute(
-        text(
-            """
-            SELECT id, user_id, name, email, phone, education, experience, skills, resume_path, resume_text, created_at
-            FROM candidates
-            ORDER BY created_at DESC
-            """
-        )
+def list_candidates(db: Session) -> list[Candidate]:
+    return (
+        db.query(Candidate)
+        .order_by(Candidate.created_at.desc())
+        .all()
     )
-    rows = result.mappings().all()
-    candidates = []
-    for row in rows:
-        candidate = dict(row)
-        if isinstance(candidate.get("skills"), str):
-            candidate["skills"] = json.loads(candidate["skills"])
-        candidate["skills"] = candidate.get("skills") or []
-        candidates.append(candidate)
-    return candidates
+

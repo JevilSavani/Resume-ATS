@@ -143,9 +143,12 @@ def extract_education(text: str) -> str | None:
     return None
 
 
-def score_candidate_match(candidate: dict, job_profile: dict) -> dict:
-    candidate_skills = {normalize_skill_name(skill) for skill in candidate.get("skills", []) if normalize_skill_name(skill)}
-    job_skills = {normalize_skill_name(skill) for skill in job_profile.get("skills", []) if normalize_skill_name(skill)}
+def score_candidate_match(candidate: object, job_profile: object) -> dict:
+    cand_dict = serialize_candidate(candidate) if not isinstance(candidate, dict) else candidate
+    job_dict = serialize_job_profile(job_profile) if not isinstance(job_profile, dict) else job_profile
+
+    candidate_skills = {normalize_skill_name(skill) for skill in cand_dict.get("skills", []) if normalize_skill_name(skill)}
+    job_skills = {normalize_skill_name(skill) for skill in job_dict.get("skills", []) if normalize_skill_name(skill)}
 
     matched_skills = sorted(job_skills.intersection(candidate_skills))
     missing_skills = sorted(job_skills.difference(candidate_skills))
@@ -276,17 +279,30 @@ def serialize_job_profile(job_profile: object) -> dict:
 
 
 def serialize_candidate(candidate: object) -> dict:
+    if isinstance(candidate, dict):
+        return {
+            "id": candidate.get("id"),
+            "name": candidate.get("name"),
+            "email": candidate.get("email"),
+            "phone": candidate.get("phone"),
+            "education": candidate.get("education"),
+            "experience": candidate.get("experience"),
+            "skills": candidate.get("skills") or [],
+            "resume_path": candidate.get("resume_path"),
+            "resume_text": candidate.get("resume_text"),
+        }
     return {
-        "id": candidate.id,
-        "name": candidate.name,
-        "email": candidate.email,
-        "phone": candidate.phone,
-        "education": candidate.education,
-        "experience": candidate.experience,
-        "skills": candidate.skills or [],
-        "resume_path": candidate.resume_path,
-        "resume_text": candidate.resume_text,
+        "id": getattr(candidate, "id", None),
+        "name": getattr(candidate, "name", None),
+        "email": getattr(candidate, "email", None),
+        "phone": getattr(candidate, "phone", None),
+        "education": getattr(candidate, "education", None),
+        "experience": getattr(candidate, "experience", None),
+        "skills": getattr(candidate, "skills", None) or [],
+        "resume_path": getattr(candidate, "resume_path", None),
+        "resume_text": getattr(candidate, "resume_text", None),
     }
+
 
 
 def rank_candidates_for_job(job_profile: object, candidates: list[object]) -> list[dict]:
